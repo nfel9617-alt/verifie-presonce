@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>SHIELD DZ - منصة إصدار الدعوات</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        /* ألوان الهوية البصرية المستوحاة من اللوغو */
+        :root { 
+            --primary: #7cb342; /* الأخضر العشبي للأجنحة */
+            --primary-dark: #2e7d32; /* الأخضر الداكن للدرع */
+            --bg: #0b1320; /* الكحلي الداكن للخلفية */
+            --glass: rgba(11, 19, 32, 0.8); 
+        }
+        
+        body { font-family: 'Tajawal', sans-serif; background: var(--bg); color: white; min-height: 100vh; margin: 0; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        
+        .admin-card { background: var(--glass); backdrop-filter: blur(10px); padding: 30px; border-radius: 24px; border: 1px solid rgba(124, 179, 66, 0.3); width: 100%; max-width: 450px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); z-index: 2;}
+        .input-group { display: flex; gap: 10px; margin-bottom: 20px; }
+        input { width: 100%; padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.5); color: white; font-size: 1rem; }
+        input:focus { outline: none; border-color: var(--primary); }
+        
+        button.btn-generate { width: 100%; padding: 15px; background: linear-gradient(45deg, var(--primary-dark), var(--primary)); border: none; border-radius: 12px; color: white; font-weight: 900; cursor: pointer; transition: 0.3s; font-size: 1.1rem; }
+        button:hover { transform: translateY(-3px); box-shadow: 0 10px 25px rgba(124, 179, 66, 0.3); }
+
+        /* تصميم بطاقة الـ VIP */
+        .ticket-wrap { display: none; margin-top: 30px; flex-direction: column; align-items: center; z-index: 2; margin-bottom: 80px;}
+        .vip-ticket { width: 350px; background: var(--bg); border: 2px solid var(--primary); border-radius: 30px; padding: 40px 20px; text-align: center; position: relative; overflow: hidden; box-shadow: 0 30px 60px rgba(0,0,0,0.8); }
+        
+        /* التأثير الضوئي الأخضر في الخلفية (تم حله باستخدام التدرج اللوني بدلا من التمويه) */
+        .vip-ticket::before { 
+            content: ''; 
+            position: absolute; 
+            top: -100px; 
+            left: -100px; 
+            width: 250px; 
+            height: 250px; 
+            background: radial-gradient(circle, rgba(124, 179, 66, 0.25) 0%, rgba(11, 19, 32, 0) 70%); 
+            border-radius: 50%;
+            z-index: 0; 
+        }
+        
+        /* علامة VIP المائية الفخمة في الخلفية */
+        .vip-ticket::after { content: 'VIP'; position: absolute; top: 10px; right: -15px; font-size: 6rem; font-weight: 900; color: rgba(255,255,255,0.04); transform: rotate(-15deg); z-index: 0; pointer-events: none;}
+
+        /* رفع العناصر لتكون واضحة فوق التأثيرات */
+        .logo-shield, .slogan, .guest-name, .qr-area, .ticket-footer { position: relative; z-index: 1; }
+
+        .logo-shield { font-size: 2rem; font-weight: 900; color: white; margin-bottom: 5px; letter-spacing: 2px; font-family: serif;}
+        .slogan { color: var(--primary); font-size: 0.9rem; }
+        .guest-name { font-size: 1.6rem; font-weight: 700; color: white; margin: 20px 0; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
+        .qr-area { background: white; padding: 15px; border-radius: 20px; display: inline-block; box-shadow: 0 0 20px rgba(124, 179, 66, 0.2); }
+        #qrcode-img { width: 160px; height: 160px; }
+        
+        /* النص الإنجليزي الاحترافي أسفل البطاقة */
+        .ticket-footer { margin-top: 20px; color: #94a3b8; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 2px; font-weight: bold; }
+
+        .credit-footer { position: fixed; bottom: 0; width: 100%; text-align: center; padding: 15px; background: rgba(11, 19, 32, 0.95); border-top: 1px solid rgba(255,255,255,0.05); color: #94a3b8; font-size: 0.9rem; z-index: 10;}
+        .credit-footer span { color: var(--primary); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1 style="color: white; font-weight: 900; margin-bottom: 30px; margin-top: 20px; z-index: 2; font-family: serif;">SHIELD <span style="color:var(--primary); font-family: 'Tajawal', sans-serif;">ADMIN</span></h1>
+
+    <div class="admin-card">
+        <div class="input-group">
+            <input type="text" id="fName" placeholder="الاسم الأول">
+            <input type="text" id="lName" placeholder="اللقب">
+        </div>
+        <button class="btn-generate" onclick="issueTicket()">إصدار بطاقة الدخول 🎫</button>
+    </div>
+
+    <div class="ticket-wrap" id="ticketContainer">
+        <div class="vip-ticket" id="captureArea">
+            <div class="logo-shield">SHIELD DZ</div>
+            <div class="slogan">The Future Begins with Health</div>
+            <div class="guest-name" id="displayFullName">الاسم هنا</div>
+            <div class="qr-area">
+                <img id="qrcode-img">
+            </div>
+            <div class="ticket-footer">OFFICIAL VIP ACCESS PASS</div>
+        </div>
+        <button class="btn-generate" onclick="downloadTicket()" style="margin-top: 20px; background: #1e293b; border: 1px solid var(--primary);">تحميل الصورة للإرسال 📥</button>
+    </div>
+
+    <div class="credit-footer">
+        تحت إعداد <span>فريق طموح</span> بالتعاون مع <span>قائدة هذا المشروع</span>
+    </div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyCgZgpQHl1aJcbtIe8otscDfA_Plzl7n_c", authDomain: "test-b8f87.firebaseapp.com", databaseURL: "https://test-b8f87-default-rtdb.firebaseio.com", projectId: "test-b8f87", storageBucket: "test-b8f87.firebasestorage.app", messagingSenderId: "199270761575", appId: "1:199270761575:web:fdb307007a678a498680c2" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        function issueTicket() {
+            const fName = document.getElementById('fName').value;
+            const lName = document.getElementById('lName').value;
+            if(!fName || !lName) return alert("الرجاء إدخال الاسم واللقب!");
+
+            const fullName = fName + " " + lName;
+            const guestId = "SH-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+
+            db.ref('shield_guests/' + guestId).set({ name: fullName, attended: false }).then(() => {
+                document.getElementById('ticketContainer').style.display = 'flex';
+                document.getElementById('displayFullName').innerText = fullName;
+                
+                new QRious({ element: document.getElementById('qrcode-img'), value: guestId, size: 300, background: 'white', foreground: '#0b1320' });
+            });
+        }
+
+        function downloadTicket() {
+            html2canvas(document.querySelector("#captureArea"), {scale: 3}).then(canvas => {
+                let link = document.createElement('a');
+                link.download = `دعوة_SHIELD_${document.getElementById('displayFullName').innerText}.png`;
+                link.href = canvas.toDataURL();
+                link.click();
+            });
+        }
+    </script>
+</body>
+</html>
